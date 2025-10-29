@@ -1,4 +1,4 @@
-name: Release APKs
+name: Build & Release APKs
 
 on:
   push:
@@ -10,30 +10,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 2. Set up JDK
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
+      # 3. Grant execute permission for Gradle wrapper
       - name: Grant execute permission for Gradle wrapper
         run: chmod +x gradlew
 
+      # 4. Build Debug APK
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
+      # 5. Build Release APK
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
+      # 6. Get version from build.gradle
       - name: Get version from build.gradle
         id: get_version
         run: |
           VERSION_NAME=$(grep versionName app/build.gradle | head -1 | awk -F'"' '{print $2}')
           echo "version=$VERSION_NAME" >> $GITHUB_OUTPUT
 
+      # 7. Create GitHub Release
       - name: Create GitHub Release
         id: create_release
         uses: ncipollo/release-action@v1
@@ -44,18 +51,20 @@ jobs:
           prerelease: false
           token: ${{ secrets.GH_TOKEN }}
 
-      - name: Upload Debug APK to Release
+      # 8. Upload Debug APK to Release
+      - name: Upload Debug APK
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: app/build/outputs/apk/debug/*.apk
+          asset_path: app/build/outputs/apk/debug/app-debug.apk
           asset_name: HaterHunter-Debug.apk
           asset_content_type: application/vnd.android.package-archive
 
-      - name: Upload Release APK to Release
+      # 9. Upload Release APK to Release
+      - name: Upload Release APK
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: app/build/outputs/apk/release/*.apk
+          asset_path: app/build/outputs/apk/release/app-release.apk
           asset_name: HaterHunter-Release.apk
           asset_content_type: application/vnd.android.package-archive
