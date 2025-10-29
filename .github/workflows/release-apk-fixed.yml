@@ -59,3 +59,54 @@ jobs:
           asset_path: app/build/outputs/apk/release/*.apk
           asset_name: HaterHunter-Release.apk
           asset_content_type: application/vnd.android.package-archive
+name: Build & Release APKs
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Debug & Release APKs
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Set up JDK
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      # 3️⃣ Cache Gradle
+      - name: Cache Gradle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      # 4️⃣ Build Debug APK
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      # 5️⃣ Build Release APK
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      # 6️⃣ Upload APKs as artifacts
+      - name: Upload APKs
+        uses: actions/upload-artifact@v3
+        with:
+          name: HaterHunter-APKs
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/app-release.apk
