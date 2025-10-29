@@ -1,0 +1,61 @@
+name: Build & Release APKs
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Grant execute permission for Gradle wrapper
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Get versionName
+        id: version
+        run: |
+          versionName=$(grep versionName app/build.gradle | head -1 | awk '{print $2}' | tr -d '"')
+          echo "version=$versionName" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          token: ${{ secrets.GH_TOKEN }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Debug APK
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: app/build/outputs/apk/debug/*.apk
+          asset_name: HaterHunter-Debug.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - name: Upload Release APK
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: app/build/outputs/apk/release/*.apk
+          asset_name: HaterHunter-Release.apk
+          asset_content_type: application/vnd.android.package-archive
