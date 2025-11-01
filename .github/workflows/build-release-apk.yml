@@ -1,0 +1,43 @@
+name: Build & Sign APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup JDK
+      uses: gradle/actions/setup-gradle@v5
+      with:
+        java-version: 17
+
+    - name: Setup keystore
+      run: |
+        mkdir -p $HOME/.keystore
+        cp app/keystore.jks $HOME/.keystore/keystore.jks
+
+    - name: Build release APK
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: |
+        ./gradlew assembleRelease \
+          -Pandroid.injected.signing.store.file=$HOME/.keystore/keystore.jks \
+          -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+          -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+          -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+
+    - name: Upload signed APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-release.apk
+        path: app/build/outputs/apk/release/app-release.apk
