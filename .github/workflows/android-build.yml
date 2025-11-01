@@ -1,46 +1,54 @@
-name: Android Build (Debug + Release)
+name: Build Debug & Release APKs
 
 on:
   push:
     branches:
       - main
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build APKs
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
+    - name: Setup JDK
+      uses: gradle/actions/setup-gradle@v5
+      with:
+        java-version: 17
 
-      - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+    # Debug APK
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
 
-      - name: Grant execute permission for Gradle wrapper
-        run: chmod +x gradlew
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-debug.apk
+        path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+    # Release APK
+    - name: Setup keystore
+      run: |
+        mkdir -p $HOME/.keystore
+        cp app/keystore.jks $HOME/.keystore/keystore.jks
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
+    - name: Build Signed Release APK
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: |
+        ./gradlew assembleRelease \
+          -Pandroid.injected.signing.store.file=$HOME/.keystore/keystore.jks \
+          -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
+          -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
+          -Pandroid.injected.signing.key.password=$KEY_PASSWORD
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: HaterHunter-Debug
-          path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: HaterHunter-Release
-          path: app/build/outputs/apk/release/*.apk
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-release.apk
+        path: app/build/outputs/apk/release/app-release.apk
