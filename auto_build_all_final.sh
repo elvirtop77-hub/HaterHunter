@@ -1,16 +1,17 @@
-#!/bin/bash
+0#!/bin/bash
 set -e
 
 WORKFLOW="auto-release.yml"
 BRANCH="main"
+ARTIFACT_DIR="artifacts"
 
 echo "[🚀] Starting full automation..."
 
-# Make sure we are on the main branch
+# Ensure main branch
 git checkout $BRANCH
 git pull origin $BRANCH
 
-# Commit any local changes (none expected)
+# Auto-commit any local changes
 if [ -n "$(git status --porcelain)" ]; then
     git add .
     git commit -m "Auto-commit before workflow"
@@ -21,13 +22,17 @@ git push origin $BRANCH
 
 echo "[⚙️] Triggering GitHub Actions workflow ($WORKFLOW)..."
 
-# Trigger the workflow_dispatch for the new workflow only
-RUN_ID=$(gh workflow run "$WORKFLOW" --ref "$BRANCH" --json number -q '.number')
-echo "Workflow dispatched, run number: $RUN_ID"
+# Trigger workflow_dispatch
+gh workflow run "$WORKFLOW" --ref "$BRANCH"
+echo "[ℹ️] Workflow dispatched, waiting for it to appear in run list..."
 
-# Wait for workflow to finish
+# Get latest run databaseId for this workflow
+RUN_ID=$(gh run list --workflow="$WORKFLOW" --branch="$BRANCH" --limit 1 --json databaseId -q '.[0].databaseId')
+echo "Workflow run databaseId: $RUN_ID"
+
+# Wait for workflow completion
 while true; do
-    STATUS=$(gh run view $RUN_ID --json status,conclusion -q '.status + " " + (.conclusion // "")')
+    STATUS=$(gh run view "$RUN_ID" --json status,conclusion -q '.status + " " + (.conclusion // "")')
     echo "[...] Workflow status: $STATUS"
     if [[ $STATUS == "completed "* ]]; then
         CONCLUSION=$(echo $STATUS | awk '{print $2}')
@@ -35,12 +40,25 @@ while true; do
             echo "[✔] Workflow completed successfully!"
         else
             echo "[❌] Workflow failed with conclusion: $CONCLUSION"
-            echo "[📄] Showing logs..."
-            gh run view $RUN_ID --log
+            echo "[📄] Showing full logs..."
+            gh run view "$RUN_ID" --log
+            exit 1
         fi
         break
     fi
     sleep 10
 done
 
-echo "[🎉] Automation complete! APKs should be available in Releases."
+# Create artifacts folder
+mkdir -p "$ARTIFACT_DIR"
+
+echo "[⬇️] Downloading artifacts..."
+# Get list of artifact names
+ARTIFACTS=$(gh run view "$RUN_ID" --json artifacts -q '.artifacts[].name')
+
+for ART in $ARTIFACTS; do
+    echo "[⬇️] Downloading $ART..."
+    gh run download "$RUN_ID" -n "$ART" -D "$ARTIFACT_DIR"
+done
+
+echo "[🎉] Automation complete! APKs downloaded to $ARTIFACT_DIR/"
