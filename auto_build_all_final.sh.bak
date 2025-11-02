@@ -1,0 +1,64 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# auto_build_all_final.sh
+# Fully automated Termux build + GitHub release update
+
+set -e
+
+echo "[🚀] Starting fully automated Termux build..."
+
+# --- Sync Git repository ---
+echo "[🔄] Syncing repository..."
+git fetch --all
+git reset --hard origin/main
+
+# --- Install dependencies ---
+echo "[⚙️] Installing dependencies..."
+pkg update -y
+pkg upgrade -y
+pkg install -y git wget unzip openjdk-17 gradle gh
+
+# --- Download Android cmdline tools ---
+SDK_DIR="$HOME/android-sdk"
+mkdir -p "$SDK_DIR"
+cd "$SDK_DIR"
+
+if [ ! -f "cmdline-tools.zip" ]; then
+    echo "[ℹ️] Downloading cmdline-tools..."
+    wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+fi
+
+echo "[ℹ️] Extracting cmdline-tools..."
+unzip -o cmdline-tools.zip -d tmp
+mkdir -p cmdline-tools/latest
+mv tmp/cmdline-tools/* cmdline-tools/latest/ || true
+
+# --- Build APK ---
+echo "[🏗️] Building APK..."
+cd "$HOME/HaterHunter"
+./gradlew clean assembleRelease
+
+# Locate the APK
+APK_PATH=$(find "$HOME/HaterHunter/app/build/outputs/apk/release/" -name "*.apk" | head -n 1)
+if [ -z "$APK_PATH" ]; then
+    echo "[❌] APK not found! Build failed."
+    exit 1
+fi
+echo "[✅] APK built at $APK_PATH"
+
+# --- GitHub release (update existing if exists) ---
+TAG_NAME="latest-release"
+RELEASE_NAME="Automated Build"
+
+if gh release view "$TAG_NAME" &>/dev/null; then
+    echo "[📦] Release exists. Updating APK..."
+    ASSETS=$(gh release view "$TAG_NAME" --json assets -q '.assets[].name')
+    for asset in $ASSETS; do
+        gh release delete-asset "$TAG_NAME" "$asset" --confirm
+    done
+    gh release upload "$TAG_NAME" "$APK_PATH" --clobber
+else
+    echo "[📦] Release does not exist. Creating new release..."
+    gh release create "$TAG_NAME" "$APK_PATH" --title "$RELEASE_NAME" --notes "Automated APK build from Termux."
+fi
+
+echo "[🎉] GitHub release updated successfully!"
