@@ -1,12 +1,13 @@
 plugins { id 'com.android.application' }
 android {
+    namespace "com.example.haterhunter"
     compileSdk 34
     defaultConfig {
         applicationId "com.example.haterhunter"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.0.1"
     }
 }
 dependencies {
